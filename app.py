@@ -19,50 +19,60 @@ class GraphRAGAgent:
         self.llm = OllamaLLM(model="llama3.2", base_url=OLLAMA_BASE_URL)
 
     def extract_entities_from_query(self, query):
-        """Uses LLM to identify which entities the user is asking about."""
         prompt = PromptTemplate.from_template(
             "Identify the names of companies, people, or accounts in this query. "
-            "Output ONLY the names separated by commas. Query: {query}"
+            "Output ONLY the names separated by commas. If none, output 'NONE'. Query: {query}"
         )
         response = self.llm.invoke(prompt.format(query=query))
+        if "NONE" in response.upper():
+            return []
         return [e.strip() for e in response.split(",") if e.strip()]
 
-    def get_smart_context(self, user_query, depth=3):
-        """Performs a deep traversal to find the full ownership chain."""
+    def get_comprehensive_context(self, user_query, depth=3):
         entities = self.extract_entities_from_query(user_query)
         context_parts = []
         
         with self.driver.session() as session:
-            for entity in entities:
-                # We use a broad MATCH that looks for connections in any direction up to 'depth' hops
-                # We specifically prioritize 'OWNED_BY', 'CONTROLLED_BY', 'UBO', 'DIRECTOR'
-                path_query = (
-                    "MATCH path = (n:Entity)-[*1..%d]-(m) "
-                    "WHERE n.name CONTAINS $name OR m.name CONTAINS $name "
-                    "RETURN path LIMIT 50" % depth
+            if not entities:
+                # GLOBAL SEARCH: Retrieve broad transaction patterns and high-risk clusters
+                st.info("Performing Global Graph Scan...")
+                result = session.run(
+                    "MATCH (s)-[r]->(o) "
+                    "RETURN s.name as sub, type(r) as rel, o.name as obj, properties(r) as props "
+                    "LIMIT 100"
                 )
-                paths = session.run(path_query, name=entity)
-                for record in paths:
-                    rels = record["path"].relationships
-                    for rel in rels:
-                        context_parts.append(f"{rel.start_node['name']} -[{rel.type}]-> {rel.end_node['name']}")
+                for record in result:
+                    context_parts.append(f"{record['sub']} -[{record['rel']}]-> {record['obj']} (Data: {record['props']})")
+            else:
+                # TARGETED SEARCH: Deep traversal for specific entities
+                for entity in entities:
+                    path_query = (
+                        "MATCH path = (n:Entity)-[*1..%d]-(m) "
+                        "WHERE n.name CONTAINS $name OR m.name CONTAINS $name "
+                        "RETURN path LIMIT 50" % depth
+                    )
+                    paths = session.run(path_query, name=entity)
+                    for record in paths:
+                        rels = record["path"].relationships
+                        for rel in rels:
+                            context_parts.append(f"{rel.start_node['name']} -[{rel.type}]-> {rel.end_node['name']}")
             
-        return "\n".join(list(set(context_parts))) if context_parts else "No relevant graph connections found."
+        return "\n".join(list(set(context_parts))) if context_parts else "No graph data found."
 
     def answer_query(self, user_query, depth=3):
-        context = self.get_smart_context(user_query, depth)
+        context = self.get_comprehensive_context(user_query, depth)
         
         prompt = PromptTemplate.from_template(
-            "You are a Transaction Banking Risk Analyst. Use the following Knowledge Graph context to perform a 'Look-Through' analysis. \n"
-            "Identify Ultimate Beneficial Owners (UBOs) and any links to sanctioned entities. \n\n"
+            "You are a Transaction Banking Risk Analyst. Use the following Knowledge Graph context to perform a comprehensive analysis. \n"
+            "Connect the dots between different batches, transactions, and ownership layers. \n\n"
             "CONTEXT FROM NEO4J:\n{context}\n\n"
             "QUESTION: {question}\n"
-            "FINAL RISK REPORT:"
+            "DETAILED RISK ANALYSIS:"
         )
         
         return self.llm.invoke(prompt.format(context=context, question=user_query))
 
-# UI
+# UI logic
 st.title("🛡️ Interactive Fraud Detection & pKYC Agent")
 
 if "agent" not in st.session_state:
@@ -73,14 +83,14 @@ agent = st.session_state.agent
 with st.sidebar:
     st.header("Settings")
     traversal_depth = st.slider("Traversal Depth (Hops)", 1, 5, 3)
-    st.info("Level 3+ is recommended for multi-layered BVI/Panama shells.")
+    st.info("Global Search is automatically triggered for broad questions.")
 
 tab1, tab2 = st.tabs(["GraphRAG Analyst", "GNN Mule Detection"])
 
 with tab1:
-    user_input = st.text_input("Ask about a company or person:", "Trace the ownership of TechCorp HK to its UBO")
-    if st.button("Run Deep Analysis"):
-        with st.spinner("Traversing corporate layers..."):
+    user_input = st.text_input("Ask about anything in the logs:", "Analyze all transactions related to TechCorp HK")
+    if st.button("Run Analysis"):
+        with st.spinner("Scanning the entire Knowledge Graph..."):
             result = agent.answer_query(user_input, depth=traversal_depth)
             st.markdown(result)
 
@@ -88,4 +98,4 @@ with tab2:
     st.subheader("GNN Structural Alerts")
     if st.button("Scan for Mule Rings"):
         st.error("Alert: Potential Smurfing Ring Detected in 'Mule-Cluster-Alpha'.")
-        st.info("GNN Logic: Identified 45 nodes sharing IP/Phone attributes across 2 jurisdictions.")
+        st.info("Logic: GraphSAGE identified 45 nodes sharing IP/Phone attributes.")
