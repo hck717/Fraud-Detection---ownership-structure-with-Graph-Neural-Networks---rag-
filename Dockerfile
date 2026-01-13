@@ -2,15 +2,18 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# Install system dependencies
+# Removed software-properties-common as it's not available in some slim builds and unnecessary for this stack
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Copy project files
 COPY . .
 
 EXPOSE 8501
