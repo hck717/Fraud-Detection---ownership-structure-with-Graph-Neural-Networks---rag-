@@ -20,51 +20,59 @@ class GraphIngestor:
 
     def extract_triples(self, text):
         prompt = PromptTemplate.from_template(
-            "Extract entities and their relationships from this text. \n"
+            "Convert the following text into a structured list of triples for a Knowledge Graph. \n"
+            "Format: Subject | Relationship | Object \n"
             "Rules:\n"
-            "1. Output as list of triples: Subject | Relationship | Object\n"
-            "2. Keep relationships CONCISE and use UNDERSCORES (e.g., TRANSFERRED_FUNDS, OWNED_BY).\n"
-            "3. No extra text, just the list.\n\n"
+            "- Extract ONLY the triples.\n"
+            "- Use ONE triple per line.\n"
+            "- Example: TechCorp HK | OWNED_BY | John Smith\n\n"
             "Text: {text}"
         )
         response = self.llm.invoke(prompt.format(text=text))
-        return [line.split(" | ") for line in response.strip().split("\n") if " | " in line]
+        
+        triples = []
+        for line in response.strip().split("\n"):
+            # Clean up common LLM artifacts (bullet points, numbering)
+            clean_line = re.sub(r'^(\d+\.|\-|\*)\s*', '', line.strip())
+            parts = clean_line.split(" | ")
+            if len(parts) == 3:
+                triples.append([p.strip() for p in parts])
+        return triples
 
     def push_to_neo4j(self, triples):
         with self.driver.session() as session:
             for sub, rel, obj in triples:
-                # 1. Sanitize Relationship Type: Neo4j does NOT allow hyphens in relationship types.
-                # We replace all non-alphanumeric chars with underscores.
-                r_type = re.sub(r'[^a-zA-Z0-9_]', '_', rel.strip()).upper()
-                if not r_type or r_type[0].isdigit(): # Ensure it doesn't start with a number
+                # Sanitize relationship type (No spaces or hyphens)
+                r_type = re.sub(r'[^a-zA-Z0-9_]', '_', rel).upper()
+                if not r_type or r_type[0].isdigit():
                     r_type = "REL_" + r_type
 
-                # 2. Use Parameters for Entity Names: This handles quotes and special chars safely.
-                # Relationship types CANNOT be parameterized, so we inject them into the string.
+                # MERGE ensures we don't create duplicates and CONNECTS the nodes
                 query = (
-                    f"MERGE (s:Entity {{name: $s_name}}) "
-                    f"MERGE (o:Entity {{name: $o_name}}) "
-                    f"MERGE (s)-[:{r_type}]->(o)"
+                    "MERGE (s:Entity {name: $s_name}) "
+                    "MERGE (o:Entity {name: $o_name}) "
+                    f"MERGE (s)-[r:{r_type}]->(o) "
+                    "RETURN type(r)"
                 )
                 
                 try:
-                    session.run(query, s_name=sub.strip(), o_name=obj.strip())
+                    session.run(query, s_name=sub, o_name=obj)
                 except Exception as e:
-                    print(f"Skipping invalid triple: {sub} | {rel} | {obj} - Error: {e}")
+                    print(f"Error creating relationship: {e}")
 
 if __name__ == "__main__":
     ingestor = GraphIngestor()
-    with open("data/transactions.md", "r") as f:
-        content = f.read()
-    print("Extracting triples from transactions...")
-    triples_tx = ingestor.extract_triples(content)
-    ingestor.push_to_neo4j(triples_tx)
+    # Resetting the database for a clean demo
+    with ingestor.driver.session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
+        
+    for file_path in ["data/transactions.md", "data/entities.md"]:
+        print(f"Processing {file_path}...")
+        with open(file_path, "r") as f:
+            content = f.read()
+        triples = ingestor.extract_triples(content)
+        print(f"Extracted {len(triples)} triples. Pushing to Neo4j...")
+        ingestor.push_to_neo4j(triples)
     
-    with open("data/entities.md", "r") as f:
-        content_ent = f.read()
-    print("Extracting triples from entities...")
-    triples_ent = ingestor.extract_triples(content_ent)
-    ingestor.push_to_neo4j(triples_ent)
-    
-    print("Graph ingestion complete.")
+    print("Ingestion complete. Check [http://localhost:7474](http://localhost:7474)")
     ingestor.close()
