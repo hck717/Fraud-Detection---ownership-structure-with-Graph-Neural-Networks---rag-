@@ -2,7 +2,7 @@ import os
 import re
 from neo4j import GraphDatabase
 from langchain_community.llms import Ollama
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate # Updated to core for modern langchain
 
 # Configuration
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -29,10 +29,15 @@ class GraphIngestor:
     def push_to_neo4j(self, triples):
         with self.driver.session() as session:
             for sub, rel, obj in triples:
+                # Basic cleaning for Cypher injection safety
+                s_name = sub.strip().replace("'", "\\'")
+                o_name = obj.strip().replace("'", "\\'")
+                r_type = rel.strip().replace(" ", "_").upper()
+                
                 query = (
-                    f"MERGE (s:Entity {{name: '{sub.strip()}'}}) "
-                    f"MERGE (o:Entity {{name: '{obj.strip()}'}}) "
-                    f"MERGE (s)-[:{rel.strip().replace(' ', '_')}]->(o)"
+                    f"MERGE (s:Entity {{name: '{s_name}'}}) "
+                    f"MERGE (o:Entity {{name: '{o_name}'}}) "
+                    f"MERGE (s)-[:{r_type}]->(o)"
                 )
                 session.run(query)
 

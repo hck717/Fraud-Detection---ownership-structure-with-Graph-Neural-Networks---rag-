@@ -5,6 +5,7 @@ torch
 torch-geometric
 langchain
 langchain-community
+langchain-core
 ollama
 pyvis
 python-dotenv
