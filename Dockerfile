@@ -2,8 +2,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies
-# Removed software-properties-common as it's not available in some slim builds and unnecessary for this stack
+# Install system dependencies (Fix: removed software-properties-common)
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \

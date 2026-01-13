@@ -1,25 +1,34 @@
-# Fraud Detection & Ownership Analytics (pKYC) - Stress Test Edition
+# Fraud Detection & Ownership Analytics (pKYC)
 
 This project implements an agentic AI system for Fraud Detection and Perpetual KYC (pKYC) using **Graph Neural Networks (GNNs)** and **GraphRAG**.
 
-## 🚀 2026 "Dirty Data" Stress Test
-The latest update introduces **Dirty Data** challenges:
-- **Inconsistent Formats**: Dates are stored in multiple formats (ISO, DD/MM/YY, YYYY.MM.DD).
-- **Nested Layering**: Ownership structures now exceed 4 layers (HK -> BVI -> Panama -> Seychelles) to test GNN and RAG traversal depth.
-- **Circular Flows**: Money is moved from HK to offshore and back to shell entities to simulate complex money laundering.
-- **Ambiguity**: Conflicting ownership reports and typos (e.g., 'Shpping' vs 'Shipping') challenge the NLP entity resolution.
+## 🚀 Environment Setup
 
-## Architecture
-- **Knowledge Graph**: Neo4j (using `valid_from` properties for temporal pKYC).
-- **LLM**: Llama 3.2 (Local via Ollama).
-- **GNN Model**: GraphSAGE for identifying "Mule Clusters" and "Circular Flow" motifs.
-- **UI**: Streamlit with interactive risk-memo generation.
+### 1. Local LLM (Ollama)
+This project uses **Llama 3.2** running locally on your Macbook.
+- Ensure Ollama is installed and running.
+- Pull the model: `ollama run llama3.2`
+- The Docker container connects to your host machine via `http://host.docker.internal:11434`.
 
-## Quick Start
-1. `docker-compose up -d`
-2. `python src/nlp_to_graph.py` (The agent will now attempt to resolve "dirty" entities using Llama 3.2's reasoning).
-3. Open `http://localhost:8501`.
+### 2. Infrastructure
+Ensure Docker Desktop is running.
+
+```bash
+# IMPORTANT: Pull the latest changes from GitHub first!
+git pull origin main
+
+# Build and start the Neo4j and Streamlit services
+docker-compose up -d --build
+```
+
+### 3. Initialize Graph
+```bash
+python src/nlp_to_graph.py
+```
 
 ## Data Challenges
 - `data/transactions.md`: Structuring/Smurfing and blacklisted entity interactions.
 - `data/entities.md`: Complex multi-jurisdictional hierarchies.
+
+## UI
+Open [http://localhost:8501](http://localhost:8501) to interact with the dashboard.
