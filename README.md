@@ -23,7 +23,7 @@ docker-compose up -d --build
 
 ### 3. Initialize Graph
 ```bash
-python src/nlp_to_graph.py
+docker exec -it fraud_agent_ui python src/nlp_to_graph.py
 ```
 
 ## Data Challenges
