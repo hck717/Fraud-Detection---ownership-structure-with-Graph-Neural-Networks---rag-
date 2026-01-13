@@ -1,0 +1,10 @@
+neo4j
+streamlit
+pandas
+torch
+torch-geometric
+langchain
+langchain-community
+ollama
+pyvis
+python-dotenv
