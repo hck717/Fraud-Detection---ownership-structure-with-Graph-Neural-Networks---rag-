@@ -42,7 +42,7 @@ class GraphRAGAgent:
                     "LIMIT 100"
                 )
                 for record in result:
-                    context_parts.append(f"{record['sub']} -[{record['rel']}]-> {record['obj']} (Data: {record['props']})")
+                    context_parts.append(f"{record['sub']} -[{record['rel']}]-> {record['obj']} (Metadata: {record['props']})")
             else:
                 # TARGETED SEARCH: Deep traversal for specific entities
                 for entity in entities:
@@ -55,7 +55,7 @@ class GraphRAGAgent:
                     for record in paths:
                         rels = record["path"].relationships
                         for rel in rels:
-                            context_parts.append(f"{rel.start_node['name']} -[{rel.type}]-> {rel.end_node['name']}")
+                            context_parts.append(f"{rel.start_node['name']} -[{rel.type}]-> {rel.end_node['name']} (Properties: {dict(rel)})")
             
         return "\n".join(list(set(context_parts))) if context_parts else "No graph data found."
 
@@ -63,11 +63,14 @@ class GraphRAGAgent:
         context = self.get_comprehensive_context(user_query, depth)
         
         prompt = PromptTemplate.from_template(
-            "You are a Transaction Banking Risk Analyst. Use the following Knowledge Graph context to perform a comprehensive analysis. \n"
-            "Connect the dots between different batches, transactions, and ownership layers. \n\n"
+            "You are a Transaction Banking Risk Analyst. Use ONLY the following Knowledge Graph context for your analysis. \n"
+            "STRICT RULES:\n"
+            "1. Do NOT invent or assume any entity names (e.g., NorthStar Trading) not found in the context.\n"
+            "2. If the ownership percentage is not explicitly in the context, do not guess it.\n"
+            "3. If the context is insufficient, explicitly state: 'The provided data does not contain information about [X]'.\n\n"
             "CONTEXT FROM NEO4J:\n{context}\n\n"
             "QUESTION: {question}\n"
-            "DETAILED RISK ANALYSIS:"
+            "FACT-BASED RISK ANALYSIS:"
         )
         
         return self.llm.invoke(prompt.format(context=context, question=user_query))

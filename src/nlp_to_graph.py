@@ -20,9 +20,12 @@ class GraphIngestor:
 
     def extract_triples(self, text):
         prompt = PromptTemplate.from_template(
-            "You are a knowledge extraction engine. Convert the following text into triples. \n"
-            "Rule: If you see different names for the same company (e.g. 'THK' and 'TechCorp'), use the FULL NAME 'TechCorp HK'.\n"
-            "Format: Subject | Relationship | Object \n"
+            "You are a strict knowledge extraction engine. Convert the following text into triples. \n"
+            "STRICT RULES:\n"
+            "1. Use FULL NAMES only (e.g. 'TechCorp HK' instead of 'THK').\n"
+            "2. Identify clear relationships like OWNED_BY, MANAGED_BY, or TRANSFERRED_TO.\n"
+            "3. Format exactly as: Subject | Relationship | Object\n"
+            "4. Only extract facts present in the text. Do not infer.\n\n"
             "Text: {text}"
         )
         response = self.llm.invoke(prompt.format(text=text))
@@ -56,9 +59,10 @@ if __name__ == "__main__":
         session.run("MATCH (n) DETACH DELETE n")
         
     for file_path in ["data/entities.md", "data/transactions.md"]:
-        with open(file_path, "r") as f:
-            content = f.read()
-        triples = ingestor.extract_triples(content)
-        ingestor.push_to_neo4j(triples)
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
+                content = f.read()
+            triples = ingestor.extract_triples(content)
+            ingestor.push_to_neo4j(triples)
     ingestor.close()
     print("Ingestion complete with Entity Resolution.")
