@@ -1,78 +1,65 @@
 # 🛡️ Fraud Detection & pKYC GraphRAG Agent
 
-This project implements an industry-grade **Perpetual KYC (pKYC)** and **Fraud Detection** system. It leverages **Graph Neural Networks (GNNs)** for structural risk detection and **GraphRAG** (Llama 3.2 + Neo4j) for explainable ownership analysis.
+This project is an industry-grade **Perpetual KYC (pKYC)** and **Fraud Detection** system. It leverages **Graph Neural Networks (GNNs)** for structural risk detection and **Agentic GraphRAG** (Llama 3.2 + Neo4j) for explainable ownership and transaction analysis.
 
-## 🏗️ System Architecture & Workflow
+## 🏗️ System Architecture
 
-The system follows a three-stage intelligent workflow:
+The system operates as a "Bank-in-a-Box" localized environment ensuring **Data Privacy**.
 
-1.  **Ingestion (Unstructured to Knowledge Graph)**:
-    - Raw, "dirty" transaction logs and corporate filings (`.md`) are processed by **Llama 3.2**.
-    - Entities (UBOs, Companies, Accounts) and Relationships are extracted and injected into **Neo4j**.
-    - **Temporal properties** (`valid_from`/`valid_to`) are applied to support pKYC.
+1.  **LLM Engine**: Ollama (Llama 3.2) - Reasoning core for extraction and risk memo synthesis.
+2.  **Graph Database**: Neo4j (Docker) - Stores complex corporate layers and ISO 20022 transaction logs.
+3.  **GNN Framework**: PyTorch Geometric - Runs **GraphSAGE** to identify "Mule Clusters" (Smurfing).
+4.  **Agentic Interface**: Streamlit - Interactive dashboard for natural language investigations.
 
-2.  **Detection (Structural GNN Intelligence)**:
-    - **GraphSAGE** (PyTorch Geometric) scans the network for non-obvious motifs.
-    - It identifies "Mule Clusters" (Smurfing) where accounts share hidden attributes like IP, phone, or address.
+## 📈 Intelligent Workflow
 
-3.  **Reasoning (Interactive GraphRAG Agent)**:
-    - A **Streamlit** dashboard allows analysts to query the graph in natural language.
-    - The agent performs a **Multi-Hop Traversal** (up to 3 levels) to gather context.
-    - Llama 3.2 synthesizes this context into a **Risk Memo**, providing a clear audit trail for UBO look-throughs.
+- **Phase 1: Ingestion**: `nlp_to_graph.py` converts "dirty" logs (ISO 20022 XML, MD) into a Knowledge Graph.
+- **Phase 2: GNN Detection**: `gnn_model.py` scans the network for hidden motifs (shared IPs/Phones) and calculates "Mule Probability".
+- **Phase 3: GraphRAG Analysis**: The Analyst Agent performs **Bidirectional Multi-Hop Traversal** to "look-through" shell companies to the UBO.
 
 ---
 
-## 🚀 Environment Setup
+## 🚀 Quick Start (Terminal)
 
-### 1. Prerequisites
-- **Docker Desktop** installed.
-- **Ollama** installed on your Macbook host.
-- Pull the model: `ollama run llama3.2`
-
-### 2. Start Infrastructure
+### 1. Launch Infrastructure
 ```bash
-# Pull the latest AI-native architecture
-git pull origin main
-
-# Build and start Neo4j and the Streamlit Agent
+# Start Neo4j and Streamlit Agent
 docker-compose up -d --build
 ```
 
----
-
-## 🛠️ Execution Guide
-
-### Step 1: Ingest "Dirty" Data
-Run the NLP agent inside Docker to populate your Neo4j Knowledge Graph.
+### 2. Populate & Analyze
 ```bash
+# Ingest raw entities and transactions
 docker exec -it fraud_agent_ui python src/nlp_to_graph.py
-```
 
-### Step 2: Run the GNN Mule Detector
-Trigger the structural analysis to identify smurfing rings.
-```bash
+# Run structural fraud detection
 docker exec -it fraud_agent_ui python src/gnn_model.py
 ```
 
-### Step 3: Access the Analyst Dashboard
-Open [http://localhost:8501](http://localhost:8501) on your browser.
-- **Tab 1 (Analyst)**: Ask complex UBO questions (e.g., "Trace the ownership of TechCorp HK").
-- **Tab 2 (GNN)**: View automated alerts for flagged clusters.
-
 ---
 
-## 🔍 Interactive Demo Commands (Neo4j UI)
+## 🔍 Investigation Guide
+
+### 1. Analyst Dashboard (Streamlit)
+Access at [http://localhost:8501](http://localhost:8501).
+
+**Sample Prompts:**
+- *"Trace the ownership of TechCorp HK. Who is the ultimate beneficial owner?"*
+- *"Analyze all transactions initiated by acc_8812. Are there any circular flows?"*
+- *"Identify the risk associated with Zhang Wei. Does he manage any sanctioned entities?"*
+
+### 2. Expert Mode (Neo4j UI)
 Access at [http://localhost:7474](http://localhost:7474).
 
-| Use Case | Cypher Query |
+| Use Case | Recommended Cypher Query |
 | :--- | :--- |
-| **UBO Look-Through** | `MATCH path = (c:Entity {name: 'TechCorp HK'})-[:OWNED_BY*1..5]->(ubo) RETURN path` |
-| **Mule Ring Detection** | `MATCH (n:Entity) WHERE n.name CONTAINS 'ACC-' RETURN n` |
-| **Circular Flows** | `MATCH path = (n)-[*3..5]->(n) RETURN path` |
+| **Bidirectional UBO Trace** | `MATCH path = (c:Entity {name: 'TechCorp HK'})-[r*1..5]-(ubo) RETURN path` |
+| **Mule Ring Check** | `MATCH (n:Entity) WHERE n.name STARTS WITH 'ACC' RETURN n` |
+| **Circular Layering** | `MATCH path = (n)-[*3..5]-(n) WHERE id(n) = id(last(nodes(path))) RETURN path` |
 
 ---
 
-## ⚖️ Risk Mitigation Logic
-- **Hallucination Control**: Uses strict schema extraction via Llama 3.2.
-- **Temporal Integrity**: Every relationship is timestamped to prevent acting on stale data.
-- **Explainability**: Every result includes the specific graph traversal path as evidence.
+## ⚖️ Risk Guardrails
+- **Hallucination Control**: Strict prompt engineering prevents the agent from inventing entities.
+- **Bidirectional Traversal**: Fixes "hidden" ownership by searching both incoming/outgoing relationships.
+- **Fact-Based Reasoning**: The agent must cite specific properties (%, Dates) from the graph context.

@@ -44,8 +44,9 @@ class GraphRAGAgent:
                 for record in result:
                     context_parts.append(f"{record['sub']} -[{record['rel']}]-> {record['obj']} (Metadata: {record['props']})")
             else:
-                # TARGETED SEARCH: Deep traversal for specific entities
+                # TARGETED SEARCH: Bidirectional multi-hop traversal
                 for entity in entities:
+                    # FIX: Search bidirectional (no arrow) to capture both 'Owner' and 'Owned' relationships
                     path_query = (
                         "MATCH path = (n:Entity)-[*1..%d]-(m) "
                         "WHERE n.name CONTAINS $name OR m.name CONTAINS $name "
@@ -65,7 +66,7 @@ class GraphRAGAgent:
         prompt = PromptTemplate.from_template(
             "You are a Transaction Banking Risk Analyst. Use ONLY the following Knowledge Graph context for your analysis. \n"
             "STRICT RULES:\n"
-            "1. Do NOT invent or assume any entity names (e.g., NorthStar Trading) not found in the context.\n"
+            "1. Do NOT invent or assume any entity names not found in the context.\n"
             "2. If the ownership percentage is not explicitly in the context, do not guess it.\n"
             "3. If the context is insufficient, explicitly state: 'The provided data does not contain information about [X]'.\n\n"
             "CONTEXT FROM NEO4J:\n{context}\n\n"
